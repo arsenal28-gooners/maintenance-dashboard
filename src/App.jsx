@@ -1,7 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
+import { getDatabase, ref, push, onValue, remove } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js';
 
 // ============================================================
-// DEMO DATA
+// FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyBLsTI9jRyn2D9vJlAMK2uJKFJKCHzI9Go",
+  authDomain: "maintenance-dashboard-12220.firebaseapp.com",
+  databaseURL: "https://maintenance-dashboard-12220-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "maintenance-dashboard-12220",
+  storageBucket: "maintenance-dashboard-12220.firebasestorage.app",
+  messagingSenderId: "485503196988",
+  appId: "1:485503196988:web:a222070589c77a2d750839",
+  measurementId: "G-4DHXE85TN1"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+
+// ============================================================
+// DEMO ASSETS
 // ============================================================
 const DEMO_ASSETS = [
   { id: 'MK-001', name: 'Mesin Pressing A', lastPM: '2024-11-05', pmInterval: 30 },
@@ -15,13 +35,8 @@ const DEMO_ASSETS = [
 // KOMPONEN UTAMA
 // ============================================================
 export default function MaintenanceDashboard() {
-  const [records, setRecords] = useState([
-    { id: 1, assetId: 'MK-001', assetName: 'Mesin Pressing A', type: 'PM', date: '2024-11-15', technician: 'Budi', description: 'Ganti oli mesin', duration: 2, component: 'Oil Filter, Oil', photo: null, status: 'Completed' },
-    { id: 2, assetId: 'MK-002', assetName: 'Mesin Cutting B', type: 'CM', date: '2024-11-14', technician: 'Andi', description: 'Perbaiki belt yang putus', duration: 1.5, component: 'Belt', photo: null, status: 'Completed' },
-    { id: 3, assetId: 'MK-001', assetName: 'Mesin Pressing A', type: 'PM', date: '2024-10-15', technician: 'Roni', description: 'Ganti oli + bersihkan filter', duration: 2.5, component: 'Oil Filter, Oil', photo: null, status: 'Completed' },
-    { id: 4, assetId: 'MK-001', assetName: 'Mesin Pressing A', type: 'CM', date: '2024-10-08', technician: 'Budi', description: 'Perbaiki sensor rusak', duration: 1, component: 'Sensor', photo: null, status: 'Completed' },
-    { id: 5, assetId: 'PMP-001', assetName: 'Pompa Air', type: 'PM', date: '2024-11-10', technician: 'Andi', description: 'Pemeriksaan berkala', duration: 1, component: 'Bearings', photo: null, status: 'Completed' },
-  ]);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
   
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -40,6 +55,30 @@ export default function MaintenanceDashboard() {
     component: '',
     photo: null,
   });
+
+  // ============================================================
+  // LOAD DATA FROM FIREBASE
+  // ============================================================
+  useEffect(() => {
+    const recordsRef = ref(database, 'maintenance-records');
+    
+    const unsubscribe = onValue(recordsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const recordsArray = Object.entries(data).map(([key, value]) => ({
+          ...value,
+          firebaseId: key
+        })).sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        setRecords(recordsArray);
+      } else {
+        setRecords([]);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // ============================================================
   // FUNGSI HELPER
@@ -85,31 +124,54 @@ export default function MaintenanceDashboard() {
     };
   };
 
-  const handleAddRecord = () => {
+  const handleAddRecord = async () => {
     if (!formData.assetId || !formData.technician || !formData.description) {
       alert('Isi semua field yang diperlukan!');
       return;
     }
 
     const newRecord = {
-      id: records.length + 1,
       ...formData,
       assetName: DEMO_ASSETS.find(a => a.id === formData.assetId)?.name || formData.assetId,
       status: 'Completed',
+      timestamp: new Date().toISOString(),
     };
 
-    setRecords([newRecord, ...records]);
-    setFormData({
-      assetId: '',
-      type: 'PM',
-      date: new Date().toISOString().split('T')[0],
-      technician: '',
-      description: '',
-      duration: '',
-      component: '',
-      photo: null,
-    });
-    setShowForm(false);
+    try {
+      // Push ke Firebase
+      const recordsRef = ref(database, 'maintenance-records');
+      await push(recordsRef, newRecord);
+
+      // Reset form
+      setFormData({
+        assetId: '',
+        type: 'PM',
+        date: new Date().toISOString().split('T')[0],
+        technician: '',
+        description: '',
+        duration: '',
+        component: '',
+        photo: null,
+      });
+      setShowForm(false);
+      alert('✅ Data berhasil disimpan!');
+    } catch (error) {
+      console.error('Error saving record:', error);
+      alert('❌ Error menyimpan data: ' + error.message);
+    }
+  };
+
+  const handleDeleteRecord = async (firebaseId) => {
+    if (window.confirm('Hapus record ini?')) {
+      try {
+        const recordRef = ref(database, `maintenance-records/${firebaseId}`);
+        await remove(recordRef);
+        alert('✅ Data berhasil dihapus!');
+      } catch (error) {
+        console.error('Error deleting record:', error);
+        alert('❌ Error menghapus data: ' + error.message);
+      }
+    }
   };
 
   const handlePhotoUpload = (e) => {
@@ -314,7 +376,7 @@ export default function MaintenanceDashboard() {
   );
 
   // ============================================================
-  // UI: ASSET HISTORY TAB (NEW FEATURE)
+  // UI: ASSET HISTORY TAB
   // ============================================================
   const renderAssetHistory = () => {
     const selectedAsset = DEMO_ASSETS.find(a => a.id === selectedAssetForHistory);
@@ -399,15 +461,23 @@ export default function MaintenanceDashboard() {
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {assetRecords.map((record, idx) => (
-                  <div key={record.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition">
+                  <div key={record.firebaseId} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <div className="font-bold">#{idx + 1} - {record.date}</div>
                         <div className="text-sm text-gray-600">👤 {record.technician}</div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-white text-xs font-semibold ${record.type === 'PM' ? 'bg-green-500' : 'bg-red-500'}`}>
-                        {record.type}
-                      </span>
+                      <div className="flex gap-2">
+                        <span className={`px-3 py-1 rounded-full text-white text-xs font-semibold ${record.type === 'PM' ? 'bg-green-500' : 'bg-red-500'}`}>
+                          {record.type}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteRecord(record.firebaseId)}
+                          className="text-red-500 text-xs hover:text-red-700"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                     <p className="text-sm mb-2">{record.description}</p>
                     <div className="flex gap-3 text-xs text-gray-600">
@@ -622,22 +692,35 @@ export default function MaintenanceDashboard() {
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">📋 Maintenance History (All)</h2>
       
-      {records.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-12 text-gray-500">
+          <p>⏳ Loading data dari Firebase...</p>
+        </div>
+      ) : records.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <p>Belum ada record maintenance</p>
         </div>
       ) : (
         <div className="space-y-3">
           {records.map(record => (
-            <div key={record.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 hover:shadow-lg transition">
+            <div key={record.firebaseId} className="bg-white p-4 rounded-lg shadow border border-gray-200 hover:shadow-lg transition">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="font-bold text-lg">{record.assetName} ({record.assetId})</h3>
                   <p className="text-sm text-gray-600">{record.date} • {record.technician}</p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-white text-sm font-semibold ${record.type === 'PM' ? 'bg-green-500' : 'bg-red-500'}`}>
-                  {record.type}
-                </span>
+                <div className="flex gap-2">
+                  <span className={`px-3 py-1 rounded-full text-white text-sm font-semibold ${record.type === 'PM' ? 'bg-green-500' : 'bg-red-500'}`}>
+                    {record.type}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteRecord(record.firebaseId)}
+                    className="text-red-500 hover:text-red-700"
+                    title="Hapus"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
               <p className="text-gray-700 mb-2">{record.description}</p>
               <div className="flex gap-4 text-sm text-gray-600 mb-3">
