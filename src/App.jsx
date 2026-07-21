@@ -15,10 +15,6 @@ const firebaseConfig = {
   measurementId: "G-4DHXE85TN1"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-
 // ============================================================
 // DEMO ASSETS
 // ============================================================
