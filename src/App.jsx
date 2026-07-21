@@ -713,48 +713,6 @@ export default function MaintenanceDashboard() {
   // ============================================================
   // MAIN RENDER
   // ============================================================
-
-import { database } from './firebase';
-import { ref, push, onValue, remove } from 'firebase/database';
-
-// Inside component:
-useEffect(() => {
-  // Load data dari Firebase
-  const recordsRef = ref(database, 'maintenance-records');
-  onValue(recordsRef, (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      const recordsArray = Object.entries(data).map(([key, value]) => ({
-        ...value,
-        firebaseId: key
-      }));
-      setRecords(recordsArray.sort((a, b) => new Date(b.date) - new Date(a.date)));
-    }
-  });
-}, []);
-
-// Update handleAddRecord untuk push ke Firebase:
-const handleAddRecord = () => {
-  if (!formData.assetId || !formData.technician || !formData.description) {
-    alert('Isi semua field yang diperlukan!');
-    return;
-  }
-
-  const newRecord = {
-    ...formData,
-    assetName: DEMO_ASSETS.find(a => a.id === formData.assetId)?.name,
-    status: 'Completed',
-    timestamp: new Date().toISOString(),
-  };
-
-  // Push ke Firebase
-  push(ref(database, 'maintenance-records'), newRecord);
-
-  // Reset form
-  setFormData({...});
-  setShowForm(false);
-};
-
   return (
     <div className="min-h-screen bg-gray-100">
       {/* HEADER */}
